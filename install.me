@@ -1,0 +1,44 @@
+#!/bin/sh
+
+if [ $(whoami) != "root" ]; then
+    echo "\033[0;31mPlease, run as sudo!"
+    exit 1;
+fi
+
+# check if docker is installed
+command -v docker>/dev/null 2>&1 || { echo "\033[0;31mDocker is not installed. Run \033[0;33mwget -O - https://get.docker.com | sh - \033[0;31mto install it."; exit 1; }
+
+if [ -z ${VIM_BUILDER_IMAGE+x} ]; then
+    VIM_BUILDER_IMAGE=gsanches/vim-builder:latest
+fi
+
+if [ -z ${VIM_BUILDER_NAME+x} ]; then
+    VIM_BUILDER_NAME="gsanches"
+fi
+
+# set path variables,
+# VIM_* is for the Docker container and DIST_* is for the host
+BUILD_SCRIPT=$(pwd)/build.sh
+DIST_PATH=$(pwd)/dist
+LOCAL_PATH=/usr/local
+
+# remove build dir before starting to avoid volume overhead
+rm -rf $DIST_PATH
+
+# run and remove, sharing needed volumes with no overhead,
+# since host is always empty
+docker run --rm \
+    -e "VIM_BUILDER_NAME=${VIM_BUILDER_NAME}" \
+    -v $BUILD_SCRIPT:/app/build.sh \
+    -v $DIST_PATH:$LOCAL_PATH \
+    $VIM_BUILDER_IMAGE
+
+# move files recursively to install it
+rsync -av --progress $DIST_PATH $LOCAL_PATH
+
+# remove build dir after the process for it not to waste space,
+# since rsync only copies it
+rm -rf $DIST_PATH
+
+# print Vim version and configurations at the end
+# vim --version
